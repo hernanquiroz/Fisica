@@ -5,9 +5,6 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-# =========================================================
-#  CONFIG
-# =========================================================
 st.set_page_config(
     page_title="Cursos Física & Biofísica",
     page_icon="🎓",
@@ -28,7 +25,7 @@ st.markdown(
 )
 
 BASE_DIR = Path("cursos_data")
-MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB por archivo
+MAX_FILE_SIZE = 15 * 1024 * 1024
 
 COURSES = {
     "fisica": {
@@ -71,39 +68,24 @@ def get_files(course_key: str) -> list:
         if f.is_file() and f.stat().st_size <= MAX_FILE_SIZE:
             try:
                 data = base64.b64encode(f.read_bytes()).decode()
-                files.append(
-                    {
-                        "name": f.name,
-                        "size": f.stat().st_size,
-                        "data": data,
-                    }
-                )
+                files.append({"name": f.name, "size": f.stat().st_size, "data": data})
             except Exception:
                 continue
     return files
 
 
-# =========================================================
-#  SIDEBAR – Subir / borrar archivos
-# =========================================================
+# ---------- Sidebar ----------
 with st.sidebar:
     st.title("📤 Administrar archivos")
     st.caption("Sube material a cada curso")
-    sel = st.selectbox(
-        "Curso",
-        list(COURSES.keys()),
-        format_func=lambda k: COURSES[k]["title"],
-    )
-    uploaded = st.file_uploader(
-        "Selecciona archivos",
-        accept_multiple_files=True,
-    )
+    sel = st.selectbox("Curso", list(COURSES.keys()),
+                       format_func=lambda k: COURSES[k]["title"])
+    uploaded = st.file_uploader("Selecciona archivos", accept_multiple_files=True)
     if uploaded and st.button("💾 Guardar", use_container_width=True, type="primary"):
         for uf in uploaded:
             (BASE_DIR / sel / uf.name).write_bytes(uf.getbuffer())
         st.success(f"✅ {len(uploaded)} archivo(s) subido(s)")
         st.rerun()
-
     st.divider()
     st.caption(f"Máx. por archivo: {MAX_FILE_SIZE // (1024*1024)} MB")
     if st.button("🗑️ Vaciar este curso", use_container_width=True):
@@ -113,13 +95,7 @@ with st.sidebar:
         st.rerun()
 
 
-# =========================================================
-#  Datos para el componente HTML
-# =========================================================
-courses_data = []
-for key, meta in COURSES.items():
-    courses_data.append({"id": key, **meta, "files": get_files(key)})
-
+courses_data = [{"id": k, **v, "files": get_files(k)} for k, v in COURSES.items()]
 courses_json = json.dumps(courses_data, ensure_ascii=False).replace("</", "<\\/")
 
 
@@ -135,47 +111,49 @@ HTML_TEMPLATE = r"""
     margin: 0; padding: 0;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     background: radial-gradient(ellipse at top, #1a1a3e 0%, #0f0f1e 55%, #000 100%);
-    color: white;
-    overflow-x: hidden;
-    min-height: 100vh;
+    color: white; overflow-x: hidden; min-height: 100vh;
   }
   body { padding: 20px 10px 40px; }
 
-  .header { text-align: center; margin-bottom: 10px; }
+  .header { text-align: center; margin-bottom: 6px; }
   .header h1 {
     font-size: clamp(1.4rem, 4vw, 2.4rem);
-    margin: 0 0 6px;
-    font-weight: 800;
+    margin: 0 0 6px; font-weight: 800;
     background: linear-gradient(90deg, #ff6b6b, #a29bfe, #00cec9);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   .header p { color: rgba(255,255,255,.6); margin: 0; font-size: .9rem; }
 
+  /* ============ CARRUSEL 3D ARRASTRABLE ============ */
   .carousel-wrap {
     position: relative;
     width: 100%; max-width: 1100px;
     margin: 30px auto 0;
-    height: 470px;
-    perspective: 2000px;
+    height: 480px;
+    perspective: 1600px;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: pan-y;
+    overflow: visible;
   }
-  .carousel {
-    position: relative; width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
-    transform-style: preserve-3d;
-  }
+  .carousel-wrap:active { cursor: grabbing; }
+  .carousel { position: relative; width: 100%; height: 100%; }
 
   .card {
     position: absolute;
+    top: 50%; left: 50%;
     width: 240px; height: 360px;
+    margin-top: -180px; margin-left: -120px;
     border-radius: 22px;
     cursor: pointer;
-    transition: transform .65s cubic-bezier(.34,1.56,.64,1),
-                opacity .45s ease, filter .4s ease;
+    transition: opacity .3s ease;
     transform-style: preserve-3d;
-    box-shadow: 0 25px 60px rgba(0,0,0,.6);
+    box-shadow: 0 25px 60px rgba(0,0,0,.55);
     will-change: transform, opacity;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
   .card-inner {
     position: relative;
@@ -188,37 +166,16 @@ HTML_TEMPLATE = r"""
     overflow: hidden;
     color: white;
   }
-  /* Brillo superior */
   .card-inner::before {
     content: ""; position: absolute; inset: 0;
     background: radial-gradient(circle at 30% 15%, rgba(255,255,255,.35), transparent 55%);
     pointer-events: none;
   }
-  /* Borde interior */
   .card-inner::after {
     content: ""; position: absolute; inset: 0;
     border-radius: 22px;
     border: 2px solid rgba(255,255,255,.25);
     pointer-events: none;
-  }
-
-  /* ---- POSICIONES DEL CARRUSEL ---- */
-  .card.pos-0 {
-    transform: translateX(0) scale(1.18) translateZ(100px);
-    z-index: 10;
-    filter: brightness(1.12);
-  }
-  .card.pos-0:hover {
-    transform: translateX(0) scale(1.22) translateZ(120px);
-    box-shadow: 0 35px 80px rgba(0,0,0,.75);
-  }
-  .card.pos-1 {
-    transform: translateX(280px) scale(.8) rotateY(-22deg);
-    z-index: 5; opacity: .78;
-  }
-  .card.pos-2 {
-    transform: translateX(-280px) scale(.8) rotateY(22deg);
-    z-index: 5; opacity: .78;
   }
 
   .suit { position: absolute; font-size: 1.7rem; opacity: .32; color: #fff; }
@@ -228,8 +185,7 @@ HTML_TEMPLATE = r"""
   .suit.br { bottom: 14px; right: 18px; transform: rotate(180deg); }
 
   .icon {
-    font-size: 3.8rem;
-    margin-bottom: 12px;
+    font-size: 3.8rem; margin-bottom: 12px;
     filter: drop-shadow(0 8px 20px rgba(0,0,0,.4));
     position: relative; z-index: 1;
     animation: float 3.4s ease-in-out infinite;
@@ -238,67 +194,58 @@ HTML_TEMPLATE = r"""
     0%,100% { transform: translateY(0); }
     50%     { transform: translateY(-8px); }
   }
-
   .card h2 {
-    font-size: 1.2rem; margin: 0 0 8px;
-    line-height: 1.2; font-weight: 800;
-    text-shadow: 0 2px 12px rgba(0,0,0,.4);
+    font-size: 1.2rem; margin: 0 0 8px; line-height: 1.2;
+    font-weight: 800; text-shadow: 0 2px 12px rgba(0,0,0,.4);
     position: relative; z-index: 1;
   }
   .card p {
-    font-size: .78rem; margin: 0 0 14px;
-    opacity: .93; line-height: 1.3;
-    position: relative; z-index: 1;
+    font-size: .78rem; margin: 0 0 14px; opacity: .93;
+    line-height: 1.3; position: relative; z-index: 1;
   }
   .badge {
-    display: inline-block;
-    padding: 5px 14px;
-    border-radius: 20px;
-    background: rgba(255,255,255,.22);
+    display: inline-block; padding: 5px 14px;
+    border-radius: 20px; background: rgba(255,255,255,.22);
     backdrop-filter: blur(8px);
     font-size: .7rem; font-weight: 700;
     border: 1px solid rgba(255,255,255,.35);
     position: relative; z-index: 1;
   }
   .tap-hint {
-    font-size: .65rem; opacity: .85;
-    margin-top: 10px;
+    display: none;
+    font-size: .65rem; opacity: .9; margin-top: 10px;
     position: relative; z-index: 1;
     animation: pulse 2s ease-in-out infinite;
   }
+  .card[data-center="1"] .tap-hint { display: block; }
   @keyframes pulse {
-    0%,100% { opacity: .6; }
+    0%,100% { opacity: .55; }
     50%     { opacity: 1; }
   }
 
-  /* ---- DOTS ---- */
-  .dots {
-    display: flex; justify-content: center;
-    gap: 12px; margin-top: 24px;
+  /* Indicador de arrastre */
+  .drag-hint {
+    text-align: center;
+    margin-top: 8px;
+    font-size: .78rem;
+    color: rgba(255,255,255,.5);
+    letter-spacing: .5px;
   }
-  .dot {
-    width: 11px; height: 11px; border-radius: 50%;
-    background: rgba(255,255,255,.25);
-    cursor: pointer; transition: all .3s;
-  }
-  .dot.active {
-    background: linear-gradient(90deg, #ff6b6b, #a29bfe);
-    transform: scale(1.4);
-    box-shadow: 0 0 15px rgba(162,155,254,.7);
+  .drag-hint span { display: inline-block; animation: slide 2s ease-in-out infinite; }
+  @keyframes slide {
+    0%,100% { transform: translateX(-4px); }
+    50%     { transform: translateX(4px); }
   }
 
-  /* ---- MODAL ---- */
+  /* ============ MODAL ============ */
   .modal {
     position: fixed; inset: 0;
     background: rgba(5,5,20,.93);
     backdrop-filter: blur(14px);
-    display: none;
-    align-items: center; justify-content: center;
-    z-index: 999;
-    padding: 20px;
+    display: none; align-items: center; justify-content: center;
+    z-index: 9999; padding: 20px;
   }
   .modal.open { display: flex; }
-
   .modal-content {
     background: linear-gradient(160deg, #1e1e3f, #0f0f2e);
     border: 2px solid rgba(255,255,255,.1);
@@ -314,16 +261,13 @@ HTML_TEMPLATE = r"""
     from { transform: scale(.3) rotateX(80deg); opacity: 0; }
     to   { transform: scale(1) rotateX(0);       opacity: 1; }
   }
-
   .modal-header {
-    display: flex; align-items: center;
-    gap: 15px; margin-bottom: 16px;
-    padding-right: 45px;
+    display: flex; align-items: center; gap: 15px;
+    margin-bottom: 16px; padding-right: 45px;
   }
   .modal-icon { font-size: 2.8rem; }
   .modal-header h2 { margin: 0; font-size: 1.5rem; line-height: 1.2; }
   .modal-header p { margin: 4px 0 0; opacity: .7; font-size: .85rem; }
-
   .close-btn {
     position: absolute; top: 16px; right: 16px;
     background: rgba(255,71,87,.9); color: white;
@@ -333,9 +277,7 @@ HTML_TEMPLATE = r"""
     display: flex; align-items: center; justify-content: center;
   }
   .close-btn:hover { transform: rotate(90deg) scale(1.1); background: #ff4757; }
-
   .files-title { font-size: 1rem; margin: 20px 0 12px; opacity: .9; }
-
   .file-item {
     display: flex; justify-content: space-between; align-items: center;
     padding: 13px 16px; margin-bottom: 10px;
@@ -352,8 +294,7 @@ HTML_TEMPLATE = r"""
   }
   .file-name {
     display: flex; align-items: center; gap: 10px;
-    font-size: .9rem; overflow: hidden; flex: 1;
-    min-width: 0;
+    font-size: .9rem; overflow: hidden; flex: 1; min-width: 0;
   }
   .file-name span:first-child { font-size: 1.2rem; flex-shrink: 0; }
   .file-name span:last-child {
@@ -365,28 +306,19 @@ HTML_TEMPLATE = r"""
     font-size: .72rem; font-weight: 700;
     flex-shrink: 0; color: white;
   }
+  .empty { text-align: center; padding: 40px 20px; opacity: .5; font-style: italic; }
 
-  .empty {
-    text-align: center; padding: 40px 20px;
-    opacity: .5; font-style: italic;
-  }
-
-  /* ---- RESPONSIVE ---- */
+  /* ============ RESPONSIVE ============ */
   @media (max-width: 700px) {
-    .carousel-wrap { height: 410px; }
-    .card { width: 200px; height: 300px; }
-    .card.pos-0 { transform: translateX(0) scale(1.1); }
-    .card.pos-1 { transform: translateX(130px) scale(.68) rotateY(-20deg); }
-    .card.pos-2 { transform: translateX(-130px) scale(.68) rotateY(20deg); }
+    .carousel-wrap { height: 420px; }
+    .card { width: 210px; height: 315px; margin-top: -157px; margin-left: -105px; }
     .icon { font-size: 3rem; }
     .card h2 { font-size: 1.05rem; }
     .card p { font-size: .72rem; }
     .modal-content { padding: 22px; }
   }
   @media (max-width: 400px) {
-    .card { width: 170px; height: 260px; }
-    .card.pos-1 { transform: translateX(100px) scale(.6) rotateY(-20deg); }
-    .card.pos-2 { transform: translateX(-100px) scale(.6) rotateY(20deg); }
+    .card { width: 180px; height: 270px; margin-top: -135px; margin-left: -90px; }
   }
 </style>
 </head>
@@ -394,14 +326,16 @@ HTML_TEMPLATE = r"""
 
 <div class="header">
   <h1>🎓 Cursos de Física &amp; Biofísica</h1>
-  <p>Desliza o toca las cartas para explorar el material</p>
+  <p>Arrastra o desliza para girar el carrusel</p>
 </div>
 
-<div class="carousel-wrap">
+<div class="carousel-wrap" id="carousel-wrap">
   <div class="carousel" id="carousel"></div>
 </div>
 
-<div class="dots" id="dots"></div>
+<div class="drag-hint">
+  <span>👈 &nbsp; Arrastra / swipe / rueda del mouse &nbsp; 👉</span>
+</div>
 
 <div class="modal" id="modal">
   <div class="modal-content" id="modalContent"></div>
@@ -409,57 +343,210 @@ HTML_TEMPLATE = r"""
 
 <script id="courses-data" type="application/json">__COURSES_JSON__</script>
 <script>
+(function () {
   const courses = JSON.parse(document.getElementById('courses-data').textContent);
-  let current = 0;
-  const carousel = document.getElementById('carousel');
-  const dotsEl   = document.getElementById('dots');
-  const modal    = document.getElementById('modal');
-  const modalContent = document.getElementById('modalContent');
+  const N = courses.length;
+  const wrapEl        = document.getElementById('carousel-wrap');
+  const carouselEl    = document.getElementById('carousel');
+  const modalEl       = document.getElementById('modal');
+  const modalContent  = document.getElementById('modalContent');
 
+  // --- Configuración de layout 3D ---
+  const CARD_STEP    = 280;   // separación horizontal entre cartas (px)
+  const CARD_ROT_Y   = 22;    // grados de rotación lateral
+  const CARD_SCALE   = 0.80;  // escala de las cartas laterales
+  const CARD_Z_SIDE  = -70;   // profundidad de cartas laterales
+  const DRAG_THRESHOLD = 6;   // px para considerar que fue drag
+  const SNAP_DURATION = 550;  // ms
+
+  // --- Estado ---
+  let rotation     = 0;   // posición actual del carrusel (en unidades de carta)
+  let isDragging   = false;
+  let justDragged  = false;
+  let startX       = 0;
+  let startRotation= 0;
+  let lastMoveX    = 0;
+  let lastMoveTime = 0;
+  let velocity     = 0;   // px / ms
+  let animationRAF = null;
+
+  // --- Crear cartas ---
+  const cards = [];
+  courses.forEach((c, i) => {
+    const bg = `linear-gradient(150deg, ${c.color1}, ${c.color2}, ${c.color3})`;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.index = i;
+    card.innerHTML = `
+      <div class="card-inner" style="background:${bg};">
+        <div class="suit tl">${c.suit}</div>
+        <div class="suit tr">${c.suit}</div>
+        <div class="suit bl">${c.suit}</div>
+        <div class="suit br">${c.suit}</div>
+        <div class="icon">${c.icon}</div>
+        <h2>${c.title}</h2>
+        <p>${c.desc}</p>
+        <span class="badge">${c.files.length} archivo${c.files.length === 1 ? '' : 's'}</span>
+        <div class="tap-hint">👆 Toca para abrir</div>
+      </div>`;
+    carouselEl.appendChild(card);
+    cards.push(card);
+  });
+
+  // --- Cálculo del offset circular (más cercano a 0 = frente) ---
+  function getOffset(i) {
+    let off = ((i - rotation) % N + N) % N;
+    if (off >= N / 2) off -= N;
+    return off;
+  }
+
+  // --- Actualizar transformaciones de todas las cartas ---
+  function updateCards() {
+    cards.forEach((card, i) => {
+      const off    = getOffset(i);
+      const absOff = Math.abs(off);
+      const sign   = Math.sign(off) || 1;
+
+      const x       = off * CARD_STEP;
+      const z       = -Math.min(absOff, 1) * Math.abs(CARD_Z_SIDE)
+                      - Math.max(0, absOff - 1) * 200;
+      const rotY    = -sign * Math.min(absOff, 1) * CARD_ROT_Y;
+      const scale   = 1 - Math.min(absOff, 1) * (1 - CARD_SCALE);
+      const opacity = absOff <= 1
+                      ? 1
+                      : Math.max(0, 1 - (absOff - 1) * 2);
+      const zIndex  = 20 - Math.round(absOff * 5);
+
+      card.style.transform  = `translate3d(${x}px, 0, ${z}px) rotateY(${rotY}deg) scale(${scale})`;
+      card.style.opacity    = opacity;
+      card.style.zIndex     = zIndex;
+      card.style.pointerEvents = absOff > 1.2 ? 'none' : 'auto';
+      card.dataset.center   = absOff < 0.5 ? '1' : '0';
+    });
+  }
+
+  // --- Animación de snap con easing ---
+  function animateTo(target, duration = SNAP_DURATION) {
+    if (animationRAF) cancelAnimationFrame(animationRAF);
+    const start     = rotation;
+    const startTime = performance.now();
+    const distance  = target - start;
+
+    function step(now) {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      rotation = start + distance * eased;
+      updateCards();
+      if (t < 1) {
+        animationRAF = requestAnimationFrame(step);
+      } else {
+        rotation = target;
+        updateCards();
+        animationRAF = null;
+      }
+    }
+    animationRAF = requestAnimationFrame(step);
+  }
+
+  function getCurrentIndex() {
+    return ((Math.round(rotation) % N) + N) % N;
+  }
+
+  function shortestTarget(index) {
+    const currentMod = ((rotation % N) + N) % N;
+    let diff = index - currentMod;
+    if (diff >  N / 2) diff -= N;
+    if (diff < -N / 2) diff += N;
+    return Math.round(rotation + diff);
+  }
+
+  // --- Drag con Pointer Events (mouse + touch) ---
+  wrapEl.addEventListener('pointerdown', onPointerDown);
+
+  function onPointerDown(e) {
+    if (animationRAF) {
+      cancelAnimationFrame(animationRAF);
+      animationRAF = null;
+    }
+    isDragging = true;
+    justDragged = false;
+    startX = e.clientX;
+    startRotation = rotation;
+    lastMoveX = e.clientX;
+    lastMoveTime = performance.now();
+    velocity = 0;
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }
+
+  function onPointerMove(e) {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > DRAG_THRESHOLD) justDragged = true;
+
+    rotation = startRotation - dx / CARD_STEP;
+    updateCards();
+
+    const now = performance.now();
+    const dt  = now - lastMoveTime;
+    if (dt > 0) {
+      const v = (e.clientX - lastMoveX) / dt;
+      velocity = velocity * 0.6 + v * 0.4;
+    }
+    lastMoveX = e.clientX;
+    lastMoveTime = now;
+  }
+
+  function onPointerUp() {
+    if (!isDragging) return;
+    isDragging = false;
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+
+    // Si hace mucho que no se movía, olvidar velocidad
+    if (performance.now() - lastMoveTime > 100) velocity = 0;
+
+    // Momentum suave (clamp)
+    const momentum = Math.max(-1.5, Math.min(1.5, velocity * 0.4));
+    const target   = Math.round(rotation + momentum);
+    animateTo(target, SNAP_DURATION);
+  }
+
+  // --- Click en carta: centrar o abrir modal ---
+  cards.forEach((card, i) => {
+    card.addEventListener('click', () => {
+      if (justDragged) { justDragged = false; return; }
+      const current = getCurrentIndex();
+      if (i === current) {
+        openModal(courses[i]);
+      } else {
+        animateTo(shortestTarget(i));
+      }
+    });
+  });
+
+  // --- Rueda del mouse ---
+  wrapEl.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 1 : -1;
+    animateTo(Math.round(rotation) + delta, 400);
+  }, { passive: false });
+
+  // --- Teclado ---
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'ArrowRight') animateTo(Math.round(rotation) + 1, 400);
+    if (e.key === 'ArrowLeft')  animateTo(Math.round(rotation) - 1, 400);
+  });
+
+  // --- Modal ---
   function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  }
-
-  function render() {
-    carousel.innerHTML = '';
-    dotsEl.innerHTML   = '';
-
-    courses.forEach((c, i) => {
-      const pos = (i - current + courses.length) % courses.length;
-      const bg  = `linear-gradient(150deg, ${c.color1}, ${c.color2}, ${c.color3})`;
-
-      const card = document.createElement('div');
-      card.className = `card pos-${pos}`;
-      card.innerHTML = `
-        <div class="card-inner" style="background:${bg};">
-          <div class="suit tl">${c.suit}</div>
-          <div class="suit tr">${c.suit}</div>
-          <div class="suit bl">${c.suit}</div>
-          <div class="suit br">${c.suit}</div>
-          <div class="icon">${c.icon}</div>
-          <h2>${c.title}</h2>
-          <p>${c.desc}</p>
-          <span class="badge">${c.files.length} archivo${c.files.length === 1 ? '' : 's'}</span>
-          ${pos === 0 ? '<div class="tap-hint">👆 Toca para abrir</div>' : ''}
-        </div>`;
-
-      card.addEventListener('click', () => {
-        if (pos === 0) {
-          openModal(c);
-        } else {
-          current = i;
-          render();
-        }
-      });
-      carousel.appendChild(card);
-
-      const dot = document.createElement('div');
-      dot.className = 'dot' + (pos === 0 ? ' active' : '');
-      dot.addEventListener('click', () => { current = i; render(); });
-      dotsEl.appendChild(dot);
-    });
   }
 
   function openModal(c) {
@@ -486,39 +573,21 @@ HTML_TEMPLATE = r"""
       </div>
       <h3 class="files-title">📁 Archivos del curso</h3>
       ${filesHtml}`;
-    modal.classList.add('open');
+    modalEl.classList.add('open');
   }
 
-  function closeModal() { modal.classList.remove('open'); }
-
-  modal.addEventListener('click', e => {
-    if (e.target === modal) closeModal();
+  window.closeModal = function () { modalEl.classList.remove('open'); };
+  modalEl.addEventListener('click', (e) => {
+    if (e.target === modalEl) closeModal();
   });
 
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
-    if (e.key === 'ArrowRight') { current = (current + 1) % courses.length; render(); }
-    if (e.key === 'ArrowLeft')  { current = (current - 1 + courses.length) % courses.length; render(); }
-  });
-
-  // Gestos táctiles (swipe)
-  let touchStartX = 0;
-  carousel.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
-  }, { passive: true });
-  carousel.addEventListener('touchend', e => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(dx) > 50) {
-      current = (current + (dx < 0 ? 1 : -1) + courses.length) % courses.length;
-      render();
-    }
-  });
-
-  render();
+  // --- Render inicial ---
+  updateCards();
+})();
 </script>
 </body>
 </html>
 """
 
 html = HTML_TEMPLATE.replace("__COURSES_JSON__", courses_json)
-components.html(html, height=900, scrolling=False)
+components.html(html, height=920, scrolling=False)
