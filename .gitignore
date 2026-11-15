@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Archivos subidos (no subir al repo)
+cursos_data/**/*
+!cursos_data/**/.gitkeep
+
+# Sistema
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
